@@ -20,13 +20,32 @@ lookupCountryCode <- function(country.code,
   names(country.codes) <- ISO_3166_1$Alpha_3
   
   if(all(country.code %in% names(country.codes))){
-    country.codes[country.code] 
+    code <- country.codes[country.code] 
   } else {
-    stop("country.code not in country.codes. Got: ", country.code)
+    code <- 'Unknown Region'
   }
   
+  code
 }
 
+#' Do OAuth2 authentication
+#' 
+#' @param token An existing OAuth2 token, if you have one.
+#' @param new_user Set to TRUE if you want to go through the authentication flow again.
+#' 
+#' @details 
+#' This function just wraps \code{\link[googleAuthR]{gar_auth}} from googleAuthR, 
+#'   but means you don't need to explictly load that library.
+#' 
+#' Don't use this if you are using multiple APIs aside Search Console.
+#'   
+#' @seealso \code{\link[googleAuthR]{gar_auth}}
+#' 
+#' 
+#' @export
+scr_auth <- function(token=NULL, new_user=FALSE){
+  googleAuthR::gar_auth(token=token, new_user=new_user)
+}
 
 #' Helper function for the query dimension filters
 #' 
@@ -150,7 +169,7 @@ is.valid.category.platform <- function (category, platform, include.all=FALSE) {
 check.Url <- function(url, checkProtocol=TRUE, ...){
   
   if(!is.null(url)){
-    if(checkProtocol && !grepl("http",url)){
+    if(checkProtocol && !grepl("http|android-app",url)){
       stop("URL must include protocol, e.g. http://example.com - got:", url) 
     }
     

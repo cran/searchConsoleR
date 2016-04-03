@@ -17,7 +17,9 @@ options("googleAuthR.webapp.client_secret" = getOption("searchConsoleR.webapp.cl
 #' @param dimensionFilterExp A character vector of expressions to filter. e.g. c("device==TABLET", "country~~GBR")
 #' @param aggregationType How data is aggregated.
 #' @param rowLimit How many rows, maximum is 5000.
-#' @param prettyNames If TRUE, converts SO 3166-1 alpha-3 country code to full name and creates new column called countryName.
+#' @param prettyNames If TRUE, converts SO 3166-1 alpha-3 country code to full name and 
+#'   creates new column called countryName.
+#' @param walk_data Make an API call per day, which can increase the amount of data returned.
 #' 
 #' @return A dataframe with columns in order of dimensions plus metrics, with attribute "aggregationType"
 #' 
@@ -104,13 +106,15 @@ options("googleAuthR.webapp.client_secret" = getOption("searchConsoleR.webapp.cl
 #'  }
 #'  
 search_analytics <- function(siteURL, 
-                             startDate, endDate, 
+                             startDate = Sys.Date() - 93, 
+                             endDate = Sys.Date() - 3, 
                              dimensions = NULL, 
                              searchType = c("web","video","image"),
                              dimensionFilterExp = NULL,
                              aggregationType = c("auto","byPage","byProperty"),
                              rowLimit = 1000,
-                             prettyNames = TRUE){
+                             prettyNames = TRUE,
+                             walk_data = FALSE){
   
   searchType      <- match.arg(searchType)
   aggregationType <- match.arg(aggregationType)
@@ -130,6 +134,14 @@ search_analytics <- function(siteURL,
 
   if(any(is.na(as.Date(startDate, "%Y-%m-%d")), is.na(as.Date(endDate, "%Y-%m-%d")))){
     stop("dates not in correct %Y-%m-%d format. Got these:", startDate, " - ", endDate)
+  }
+  
+  if(any(as.Date(startDate, "%Y-%m-%d") > Sys.Date()-3, as.Date(endDate, "%Y-%m-%d") > Sys.Date()-3)){
+    warning("Search Analytics usually not available within 3 days (96 hrs) of today(",Sys.Date(),"). Got:", startDate, " - ", endDate)
+  }
+  
+  if(as.Date(startDate, "%Y-%m-%d") < Sys.Date()-93){
+    warning("Search Analytics usually not available 93 days before today(",Sys.Date(),"). Got:", startDate, " - ", endDate)
   }
   
   if(!is.null(dimensions) && !dimensions %in% c('date','country', 'device', 'page', 'query')){
@@ -153,6 +165,15 @@ search_analytics <- function(siteURL,
   
   if(rowLimit > 5000){
     stop("rowLimit must be 5000 or lower. Got this: ", rowLimit)
+  }
+  
+  if(walk_data){
+    message("Walking data per day: setting rowLimit to 5000 per day.")
+    rowLimit <- 5000
+    if(!'date' %in% dimensions){
+      stop("To walk data per date requires 'date' to be one of the dimensions. 
+           Got this: ", paste(dimensions, sep=", "))
+    }
   }
   
   ## require pre-existing token, to avoid recursion
@@ -183,9 +204,28 @@ search_analytics <- function(siteURL,
                                                     searchAnalytics = "query"),
                                    data_parse_function = parse_search_analytics
                                    )
-  search_analytics_g(the_body=body, 
-                     path_arguments=list(sites = siteURL), 
-                     dim = dimensions)
+  
+  if(walk_data){
+    walk_vector <- seq(as.Date(startDate), as.Date(endDate), 1)
+    
+    out <- googleAuthR::gar_batch_walk(search_analytics_g,
+                                       walk_vector = walk_vector,
+                                       gar_paths = list(sites = siteURL),
+                                       body_walk = c("startDate", "endDate"),
+                                       the_body = body,
+                                       batch_size = 1,
+                                       dim = dimensions)
+    
+  } else {
+    
+    out <-   search_analytics_g(the_body=body, 
+                                path_arguments=list(sites = siteURL), 
+                                dim = dimensions)
+    
+  }
+  
+  out
+
 }
 
 
@@ -213,7 +253,7 @@ list_websites <- function() {
 #' @export
 add_website <- function(siteURL) {
   
-  siteURL <- check.Url(siteURL, reserved=T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
   
   aw <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
                                       "PUT",
@@ -235,7 +275,7 @@ add_website <- function(siteURL) {
 #' @family search console website functions
 delete_website <- function(siteURL) {
   
-  siteURL <- check.Url(siteURL, reserved=T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
   
   
   dw <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
@@ -260,7 +300,7 @@ delete_website <- function(siteURL) {
 #' @family sitemap admin functions
 list_sitemaps <- function(siteURL) {
   
-  siteURL <- check.Url(siteURL, reserved=T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
   
   ls <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
                                       "GET",
@@ -285,8 +325,8 @@ list_sitemaps <- function(siteURL) {
 #' @family sitemap admin functions
 add_sitemap <- function(siteURL, feedpath) {
   
-  siteURL <- check.Url(siteURL, reserved=T)
-  feedpath <- check.Url(feedpath, reserved = T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
+  feedpath <- check.Url(feedpath, reserved = TRUE)
   
   as <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
                                       "PUT",
@@ -312,8 +352,8 @@ add_sitemap <- function(siteURL, feedpath) {
 #' @family sitemap admin functions
 delete_sitemap <- function(siteURL, feedpath) {
   
-  siteURL <- check.Url(siteURL, reserved=T)
-  feedpath <- check.Url(feedpath, reserved = T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
+  feedpath <- check.Url(feedpath, reserved = TRUE)
   
   ds <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
                                       "DELETE",
@@ -352,9 +392,9 @@ delete_sitemap <- function(siteURL, feedpath) {
 crawl_errors <- function(siteURL, 
                          category="all",
                          platform=c("all","mobile","smartphoneOnly","web"),
-                         latestCountsOnly=FALSE) {
+                         latestCountsOnly = FALSE) {
   platform <- match.arg(platform)
-  siteURL <- check.Url(siteURL, reserved=T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
   
   latestCountsOnly <- ifelse(latestCountsOnly, 'true', 'false')
   
@@ -449,8 +489,8 @@ error_sample_url <- function(siteURL,
                              category="notFound",
                              platform="web") {
   
-  siteURL <- check.Url(siteURL, reserved=T)
-  pageURL <- check.Url(pageURL, checkProtocol = F, reserved = T, repeated=T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
+  pageURL <- check.Url(pageURL, checkProtocol = FALSE, reserved = TRUE, repeated = TRUE)
   
 
   ## require pre-existing token, to avoid recursion
@@ -501,11 +541,11 @@ error_sample_url <- function(siteURL,
 #' @export
 fix_sample_url <- function(siteURL,
                            pageURL,
-                           category="notFound",
-                           platform="web") {
+                           category = "notFound",
+                           platform = "web") {
   
-  siteURL <- check.Url(siteURL, reserved=T)
-  pageURL <- check.Url(pageURL, checkProtocol = F, reserved = T)
+  siteURL <- check.Url(siteURL, reserved = TRUE)
+  pageURL <- check.Url(pageURL, checkProtocol = FALSE, reserved = TRUE)
  
   if(is.valid.category.platform(category, platform)){
     
@@ -522,8 +562,9 @@ fix_sample_url <- function(siteURL,
                               urlCrawlErrorsSamples = pageURL), 
         pars_arguments = params)
     
-    TRUE
+    return(TRUE)
     
   }
   
+  return(FALSE)
 }
