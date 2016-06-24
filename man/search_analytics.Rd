@@ -7,7 +7,8 @@
 search_analytics(siteURL, startDate = Sys.Date() - 93, endDate = Sys.Date()
   - 3, dimensions = NULL, searchType = c("web", "video", "image"),
   dimensionFilterExp = NULL, aggregationType = c("auto", "byPage",
-  "byProperty"), rowLimit = 1000, prettyNames = TRUE, walk_data = FALSE)
+  "byProperty"), rowLimit = 1000, prettyNames = TRUE,
+  walk_data = c("byBatch", "byDate", "none"))
 }
 \arguments{
 \item{siteURL}{The URL of the website you have auth access to.}
@@ -16,11 +17,13 @@ search_analytics(siteURL, startDate = Sys.Date() - 93, endDate = Sys.Date()
 
 \item{endDate}{End date of the requested date range, in YYYY-MM-DD.}
 
-\item{dimensions}{Zero or more dimensions to group results by: "date", "country", "device", "page" or "query"}
+\item{dimensions}{Zero or more dimensions to group results by: 
+\code{"date", "country", "device", "page" or "query"}}
 
 \item{searchType}{Search type filter, default 'web'.}
 
-\item{dimensionFilterExp}{A character vector of expressions to filter. e.g. c("device==TABLET", "country~~GBR")}
+\item{dimensionFilterExp}{A character vector of expressions to filter. 
+e.g. \code{("device==TABLET", "country~~GBR")}}
 
 \item{aggregationType}{How data is aggregated.}
 
@@ -29,7 +32,7 @@ search_analytics(siteURL, startDate = Sys.Date() - 93, endDate = Sys.Date()
 \item{prettyNames}{If TRUE, converts SO 3166-1 alpha-3 country code to full name and 
 creates new column called countryName.}
 
-\item{walk_data}{Make an API call per day, which can increase the amount of data returned.}
+\item{walk_data}{Make multiple API calls. One of \code{("byBatch","byDate","none")}}
 }
 \value{
 A dataframe with columns in order of dimensions plus metrics, with attribute "aggregationType"
@@ -114,6 +117,37 @@ Download your Google SEO data.
    \item "byPage": Aggregate values by URI.
    \item "byProperty": Aggregate values by property.
  }
+ 
+ \strong{batchType}: [Optional] Batching data into multiple API calls
+\itemize{
+  \item byBatch Use the API call to batch
+  \item byData Runs a call over each day in the date range.
+  \item none No batching
+ }
+}
+\examples{
+
+\dontrun{
+ 
+   library(searchConsoleR)
+   scr_auth()
+   sc_websites <- list_websites()
+   
+   gbr_desktop_queries <- 
+       search_analytics("http://www.example.com",
+                         start = "2016-01-01", end = "2016-03-01",
+                         dimensions = c("query", "page"),
+                         dimensionsFilterExp = c("device==DESKTOP", "country==GBR"),
+                         searchType = "web", rowLimit = 100)
+                         
+   batching <- 
+        search_analytics("http://www.example.com",
+                         start = "2016-01-01", end = "2016-03-01",
+                         dimensions = c("query", "page", "date"),
+                         searchType = "web", rowLimit = 100000,
+                         walk_data = "byBatch") 
+  
+  }  
 }
 \seealso{
 Guide to Search Analytics: \url{https://support.google.com/webmasters/answer/6155685}

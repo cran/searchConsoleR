@@ -1,85 +1,34 @@
 # searchConsoleR
 
+[![CRAN](http://www.r-pkg.org/badges/version/searchConsoleR)](http://cran.r-project.org/package=searchConsoleR)
 [![Travis-CI Build Status](https://travis-ci.org/MarkEdmondson1234/searchConsoleR.svg?branch=master)](https://travis-ci.org/MarkEdmondson1234/searchConsoleR)
 
 R interface with Google Search Console (formally Google Webmaster Tools) API v3.
 
+# News
+
+Check out the [news](news.md) for latest updates.
+
 ## Setup Guide
 
 Install dependency `googleAuthR` from CRAN:
-```
+```r
 install.packages("googleAuthR")
 library(googleAuthR)
 ```
 
-Install `searchConsoleR` from CRAN:
-```
+Install `searchConsoleR` 0.2.0 from CRAN:
+```r
 install.packages("searchConsoleR")
 library(searchConsoleR)
 ```
 
 If you want the development version of `searchConsoleR` on Github:
 
-```
+```r
 devtools::install_github("MarkEdmondson1234/searchConsoleR")
 library(searchConsoleR)
 ```
-
-## News
-
-### 0.1.2.9002
-
-* Return an empty dataframe of NAs if no resutls in fetch instead of NULL
-* Include andriod-app check from #7
-* Add `walk_data` parameter to `search_analytics` to get more data
-* Set default start and end dates in `search_analytics` to 93 days ago and 3 days ago respectivily. 
-
-You can get 10 times the data using batching:
-
-```r
-nobatch <- search_analytics("http://www.example.com", 
-                            "2016-01-01","2016-02-01", 
-                            dimensions = c("date","query"), 
-                            rowLimit = 5000)
-
-batch <- search_analytics("http://www.example.com", 
-                          "2016-01-01","2016-02-01", 
-                          dimensions = c("date","query"), 
-                          walk_data = TRUE)
-
-str(nobatch)
-'data.frame':	4969 obs. of  6 variables:
- $ date       : Date, format: "2016-01-04" "2016-01-14" ...
- $ query      : chr  "iphone 6", "iphone 6s" "apple watch" ...
- $ clicks     : num  19 19 17 17 16 16 16 16 15 15 ...
- $ impressions: num  175 20 175 23 20 173 19 19 21 157 ...
- $ ctr        : num  0.1086 0.95 0.0971 0.7391 0.8 ...
- $ position   : num  2.77 1 3.81 1 1 ...
- - attr(*, "aggregationType")= chr "byProperty"
- 
- str(batch)
- 'data.frame':	46483 obs. of  6 variables:
- $ date       : Date, format: "2016-01-01" "2016-01-01" ...
- $ query      : chr  "iphone 6" "iphone" "iphone 6s" "apple watch" ...
- $ clicks     : num  10 8 6 6 5 4 3 3 2 2 ...
- $ impressions: num  108 304 94 45 7 49 17 193 2 23 ...
- $ ctr        : num  0.0926 0.0263 0.0638 0.1333 0.7143 ...
- $ position   : num  3.4 6.54 3.83 3.96 1.29 ...
- - attr(*, "aggregationType")= chr "byProperty"
-
-```
-
-### 0.1.2.9000 
-
-* Correct bug for error in country code.  Will now return the 'Unknown Region' if not recognised (e.g. `CXX`)
-* Add `scr_auth` function that wraps `googleAuthR::gar_auth` so you don't need to load googleAuthR explicitly.
-
-### 0.1.2 - on CRAN
-
-* Move to using googleAuthR for authentication backend.
-
-### 0.1.1
-* Change search_analytics() so if no dimensions will still return data, instead of NULL
 
 ## Shiny Compatible
 Authentication can be done locally or within a Shiny app. See a very bare bones example here: https://mark.shinyapps.io/searchConsoleRDemo/
@@ -115,12 +64,10 @@ Authentication can be done locally or within a Shiny app. See a very bare bones 
 
 * `scr_auth()` - main authentication function. Works locally and within a Shiny environment.
 
-
-
 ## Work flow
 
 Work flow always starts with authenticating with Google:
-```
+```r
 library(searchConsoleR)
 scr_auth()
 ```
@@ -128,13 +75,13 @@ scr_auth()
 Your browser window should open up and go through the Google sign in OAuth2 flow. Verify with a user that has Search Console access to the websites you want to work with.
 
 Check out the documentation of any function for a guide on what else can be done.
-```
+```r
 ?searchConsoleR
 ```
 
 If you authenticate ok, you should be able to see a list of your websites in the Search Console via:
 
-```
+```r
 sc_websites <- list_websites()
 sc_websites
 ```
@@ -145,7 +92,7 @@ Most people will find the Search Analytics most useful.  All methods from the we
 
 Here is an example query, which downloads the top 100 rows of queries per page for the month of July 2015, for United Kingdom desktop web searches:
 
-```
+```r
 gbr_desktop_queries <- 
     search_analytics("http://example.com", 
                      "2015-07-01", "2015-07-31", 
@@ -155,15 +102,49 @@ gbr_desktop_queries <-
 ```
 
 For a lot more details see: 
-```
+```r
 ?search_analytics
+```
+
+### Batching
+
+You can get more than the standard 5000 rows via batching.  There are two methods available, one via a API call per date, the other using the APIs `startRow` parameter.
+
+The date method gets more impressions for 0 click rows, the batch method is quicker but gets just rows with clicks. 
+
+```r
+test0 <- search_analytics("http://www.example.co.uk", 
+                          dimensions = c("date","query","page","country"), 
+                          rowLimit = 200000, 
+                          walk_data = "byBatch")
+Batching data via method: byBatch
+
+### test0 has 13063 rows
+
+test <- search_analytics("http://www.example.co.uk", 
+                         dimensions = c("date","query","page","country"), 
+                         walk_data = "byDate")
+Batching data via method: byDate
+
+### test has 419957 rows
+
+> sum(test0$clicks)
+[1] 12866
+> sum(test$clicks)
+[1] 12826
+> sum(test$impressions)
+[1] 1420217
+> sum(test0$impressions)
+[1] 441029
+> 
+
 ```
 
 ## Demo script
 
 Here is an example for downloading daily data and exporting to .csv
 
-```
+```r
 ## A script to download and archive Google search analytics
 ##
 ## Demo of searchConsoleR R package.
@@ -241,7 +222,7 @@ Operator can be one of ```~~, ==, !~, !=``` where the symbols mean:
 Expression formatting:
 
 * for ```page``` or ```query``` is free text.
-* for ```country``` must be the three letter country code as per the [the ISO 3166-1 alpha-3](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3) standard. e.g. USA, GBR = United Kingdon, DNK = Denmark
+* for ```country``` must be the three letter country code as per the [the ISO 3166-1 alpha-3](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3) standard. e.g. USA, GBR = United Kingdom, DNK = Denmark
 * for ```device``` must be one of:  'MOBILE', 'DESKTOP' or 'TABLET'
 
 You can have multiple ```AND``` filters by putting them in a character vector.  The below looks for desktop searches in the United Kingdom, not showing the homepage and not including queries containing 'brandterm'.
