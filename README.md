@@ -1,6 +1,6 @@
 # searchConsoleR
 
-[![CRAN](http://www.r-pkg.org/badges/version/searchConsoleR)](http://cran.r-project.org/package=searchConsoleR)
+[![CRAN](http://www.r-pkg.org/badges/version/searchConsoleR)](https://CRAN.R-project.org/package=searchConsoleR)
 [![Travis-CI Build Status](https://travis-ci.org/MarkEdmondson1234/searchConsoleR.svg?branch=master)](https://travis-ci.org/MarkEdmondson1234/searchConsoleR)
 
 R interface with Google Search Console (formally Google Webmaster Tools) API v3.
@@ -112,6 +112,8 @@ You can get more than the standard 5000 rows via batching.  There are two method
 
 The date method gets more impressions for 0 click rows, the batch method is quicker but gets just rows with clicks. 
 
+Specify a `rowLimit` when batching - if using method `byDate` this will be the limit it fetches per day, and currently needs to be over 5000 to work. [(Issue #17 will fix this)](https://github.com/MarkEdmondson1234/searchConsoleR/issues/17).
+
 ```r
 test0 <- search_analytics("http://www.example.co.uk", 
                           dimensions = c("date","query","page","country"), 
@@ -164,7 +166,7 @@ start <- Sys.Date() - 3
 ## one days data, but change it as needed
 end <- Sys.Date() - 3 
 
-## what to download, choose between data, query, page, device, country
+## what to download, choose between date, query, page, device, country
 download_dimensions <- c('date','query')
 
 ## what type of Google search, choose between 'web', 'video' or 'image'

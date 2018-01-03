@@ -28,7 +28,7 @@ The timestamp is converted to a date as they are only available daily.
 
 Category is one of: authPermissions, manyToOneRedirect, notFollowed, notFound,
   other, roboted, serverError, soft404.
-  
+
   Platform is one of: mobile, smartphoneOnly or web.
 }
 \seealso{
@@ -36,4 +36,3 @@ Other working with search console errors: \code{\link{error_sample_url}},
   \code{\link{fix_sample_url}},
   \code{\link{list_crawl_error_samples}}
 }
-

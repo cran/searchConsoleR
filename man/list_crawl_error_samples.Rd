@@ -19,7 +19,7 @@ A dataframe of $pageUrl, $last_crawled, $first_detected, $response
 \description{
 Category is one of: authPermissions, manyToOneRedirect, notFollowed, notFound,
   other, roboted, serverError, soft404.
-  
+
   Platform is one of: mobile, smartphoneOnly or web.
 }
 \details{
@@ -30,4 +30,3 @@ Other working with search console errors: \code{\link{crawl_errors}},
   \code{\link{error_sample_url}},
   \code{\link{fix_sample_url}}
 }
-
