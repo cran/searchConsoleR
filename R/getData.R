@@ -127,7 +127,7 @@
 #'        search_analytics("http://www.example.com",
 #'                          start = "2016-01-01", end = "2016-03-01",
 #'                          dimensions = c("query", "page"),
-#'                          dimensionsFilterExp = c("device==DESKTOP", "country==GBR"),
+#'                          dimensionFilterExp = c("device==DESKTOP", "country==GBR"),
 #'                          searchType = "web", rowLimit = 100)
 #'
 #'    batching <-
@@ -138,6 +138,7 @@
 #'                          walk_data = "byBatch")
 #'
 #'   }
+#' @importFrom googleAuthR gar_api_generator gar_batch_walk gar_api_page
 search_analytics <- function(siteURL,
                              startDate = Sys.Date() - 93,
                              endDate = Sys.Date() - 3,
@@ -149,8 +150,7 @@ search_analytics <- function(siteURL,
                              prettyNames = TRUE,
                              walk_data = c("byBatch","byDate","none")){
 
-  authenticated <- "Token2.0" %in% class(googleAuthR::Authentication$public_fields$token)
-  if(!authenticated){
+  if(!googleAuthR::gar_has_token()){
     stop("Not authenticated. Run scr_auth()", call. = FALSE)
   }
 
@@ -200,16 +200,16 @@ search_analytics <- function(siteURL,
   # if batching by day, row limits make no sense so we get 5000 per day.
   if(walk_data == "byDate"){
     message("Batching data via method: ", walk_data)
-    message("Will fetch up to 5000 rows per day")
-    rowLimit <- 5000
+    message("Will fetch up to 25000 rows per day")
+    rowLimit <- 25000
   } else if(walk_data == "byBatch"){
-    # if batching byBatch, we set to 5000 per API call, repeating API calls
+    # if batching byBatch, we set to 25000 per API call, repeating API calls
     #   up to the limit you have set
-    if(rowLimit > 5000){
+    if(rowLimit > 25000){
       message("Batching data via method: ", walk_data)
-      message("With rowLimit set to ", rowLimit ," will need up to [", (rowLimit %/% 5000) + 1, "] API calls")
+      message("With rowLimit set to ", rowLimit ," will need up to [", (rowLimit %/% 25000) + 1, "] API calls")
       rowLimit0 <- rowLimit
-      rowLimit <- 5000
+      rowLimit <- 25000
     } else {
       # its batched, but we can get all rows in one API call
       walk_data <- "none"
@@ -235,13 +235,12 @@ search_analytics <- function(siteURL,
     rowLimit = rowLimit
   )
 
-  search_analytics_g <-
-    googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
-                                   "POST",
-                                   path_args = list(sites = "siteURL",
-                                                    searchAnalytics = "query"),
-                                   data_parse_function = parse_search_analytics
-                                   )
+  search_analytics_g <- gar_api_generator("https://www.googleapis.com/webmasters/v3/",
+                                          "POST",
+                                          path_args = list(sites = "siteURL",
+                                                           searchAnalytics = "query"),
+                                          data_parse_function = parse_search_analytics)
+  
   
   # set this here as it may get reset if other googleAuthR packages there
   options(googleAuthR.batch_endpoint = 'https://www.googleapis.com/batch/webmasters/v3')
@@ -255,30 +254,45 @@ search_analytics <- function(siteURL,
 
     walk_vector <- seq(as.Date(startDate), as.Date(endDate), 1)
 
-    out <- googleAuthR::gar_batch_walk(search_analytics_g,
-                                       walk_vector = walk_vector,
-                                       gar_paths = list(sites = siteURL),
-                                       body_walk = c("startDate", "endDate"),
-                                       the_body = body,
-                                       batch_size = 1,
-                                       dim = dimensions)
+    out <- gar_batch_walk(search_analytics_g,
+                          walk_vector = walk_vector,
+                          gar_paths = list(sites = siteURL),
+                          body_walk = c("startDate", "endDate"),
+                          the_body = body,
+                          batch_size = 1,
+                          dim = dimensions)
 
   } else if(walk_data == "byBatch") {
 
     ## byBatch uses API batching, but this pulls out less data
     ## 0 impression keywords not included.
-    walk_vector <- seq(0, rowLimit0, 5000)
+    walk_vector <- seq(0, rowLimit0, 25000)
+    
+    do_it <- TRUE
+    i <- 1
+    pages <- list()
+    while(do_it){
+      message("Page [",i,"] of max [", length(walk_vector),"] API calls")
+      this_body <- utils::modifyList(body, list(startRow = walk_vector[i]))
+      this_page <- search_analytics_g(the_body = this_body, 
+                                     list(sites = siteURL),
+                                     dim = dimensions)
 
-    out <- googleAuthR::gar_batch_walk(search_analytics_g,
-                                       walk_vector = walk_vector,
-                                       gar_paths = list(sites = siteURL),
-                                       body_walk = "startRow",
-                                       the_body = body,
-                                       batch_size = 3,
-                                       dim = dimensions)
+      if(all(is.na(this_page[[1]]))){
+        do_it <- FALSE
+      } else {
+        message("Downloaded ", nrow(this_page), " rows")
+        pages <- rbind(pages, this_page)
+      }
+     
+      i <- i + 1
+      if(i>length(walk_vector)){
+        do_it <- FALSE
+      }
 
-
-
+    }
+    
+    out <- pages
 
   } else {
 
@@ -457,29 +471,7 @@ crawl_errors <- function(siteURL,
                          category="all",
                          platform=c("all","mobile","smartphoneOnly","web"),
                          latestCountsOnly = FALSE) {
-  platform <- match.arg(platform)
-  siteURL <- check.Url(siteURL, reserved = TRUE)
-
-  latestCountsOnly <- ifelse(latestCountsOnly, 'true', 'false')
-
-  ## require pre-existing token, to avoid recursion
-  if(is.valid.category.platform(category, platform, include.all = TRUE)) {
-
-    params <- list('category' = category,
-                   'latestCountsOnly' = latestCountsOnly,
-                   'platform' = platform)
-    params <- params[params != 'all']
-
-    ce <- googleAuthR::gar_api_generator("https://www.googleapis.com/webmasters/v3/",
-                                         "GET",
-                                         path_args = list(sites = "siteURL",
-                                                          urlCrawlErrorsCounts = "query"),
-                                         pars_args = params,
-                                         data_parse_function = parse_crawlerrors)
-
-    ce(path_arguments = list(sites = siteURL), pars_arguments = params)
-
-  }
+  stop("Crawl errors are no longer available in the API")
 }
 
 #' Lists a site's sample URLs for crawl errors.
